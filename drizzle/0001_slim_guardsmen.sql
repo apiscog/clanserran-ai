@@ -1,0 +1,2 @@
+ALTER TABLE "user" ADD COLUMN "display_name_confirmed" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "account_provider_account_uq" ON "account" USING btree ("provider_id","account_id");
