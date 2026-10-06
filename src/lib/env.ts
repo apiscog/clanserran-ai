@@ -12,12 +12,14 @@ const serverEnvSchema = z.object({
   BETTER_AUTH_URL: canonicalUrlSchema,
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
+  MICROSOFT_CLIENT_ID: z.string().min(1),
+  MICROSOFT_CLIENT_SECRET: z.string().min(1),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
-export function getServerEnv(): ServerEnv {
-  const result = serverEnvSchema.safeParse(process.env);
+export function getServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv {
+  const result = serverEnvSchema.safeParse(source);
   if (!result.success) {
     const missing = result.error.issues.map((issue) => issue.path.join(".")).join(", ");
     throw new Error(`Configuración incompleta. Revisa estas variables privadas: ${missing}`);
@@ -25,6 +27,6 @@ export function getServerEnv(): ServerEnv {
   return result.data;
 }
 
-export function isServerConfigured() {
-  return serverEnvSchema.safeParse(process.env).success;
+export function isServerConfigured(source: NodeJS.ProcessEnv = process.env) {
+  return serverEnvSchema.safeParse(source).success;
 }

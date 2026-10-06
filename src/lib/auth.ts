@@ -20,6 +20,11 @@ function createAuth() {
           clientSecret: env.GOOGLE_CLIENT_SECRET,
           prompt: "select_account",
         },
+        microsoft: {
+          clientId: env.MICROSOFT_CLIENT_ID,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET,
+          tenantId: "consumers",
+        },
       },
       session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
       trustedOrigins: [env.BETTER_AUTH_URL],

@@ -16,7 +16,7 @@ import {
 
 const { testDatabaseUrl, applicationDatabaseUrl } = loadTestDatabaseEnvironment();
 
-test("el adaptador Drizzle guarda el estado OAuth con un UUID explícito", { skip: !testDatabaseUrl }, async () => {
+test("el adaptador Drizzle guarda estados OAuth con UUID y callbacks oficiales", { skip: !testDatabaseUrl }, async () => {
   await assertIsolatedTestDatabase(testDatabaseUrl!, applicationDatabaseUrl);
   const pool = new Pool({ connectionString: testDatabaseUrl, max: 2 });
   const db = drizzle({ client: pool, schema });
@@ -29,23 +29,34 @@ test("el adaptador Drizzle guarda el estado OAuth con un UUID explícito", { ski
       baseURL: "http://localhost:3000",
       secret: "regression-test-secret-at-least-32-bytes",
       database: drizzleAdapter(db, { provider: "pg", schema }),
-      socialProviders: { google: { clientId: "test-client", clientSecret: "test-secret" } },
+      socialProviders: {
+        google: { clientId: "test-google-client", clientSecret: "test-google-secret" },
+        microsoft: { clientId: "test-microsoft-client", clientSecret: "test-microsoft-secret", tenantId: "consumers" },
+      },
       trustedOrigins: ["http://localhost:3000"],
       logger: { disabled: true },
       advanced: { database: { generateId: generateAuthId } },
     });
 
-    const response = await auth.handler(new Request("http://localhost:3000/api/auth/sign-in/social", {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "http://localhost:3000" },
-      body: JSON.stringify({ provider: "google", callbackURL: "/inicio" }),
-    }));
+    for (const provider of ["google", "microsoft"] as const) {
+      const response = await auth.handler(new Request("http://localhost:3000/api/auth/sign-in/social", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://localhost:3000" },
+        body: JSON.stringify({ provider, callbackURL: "/inicio", disableRedirect: true }),
+      }));
+
+      assert.ok(response.status >= 200 && response.status < 400, `El inicio con ${provider} no debe devolver error.`);
+      const payload = await response.json() as { url?: string };
+      assert.ok(payload.url, `El inicio con ${provider} debe generar una URL OAuth.`);
+      const authorizationUrl = new URL(payload.url);
+      assert.equal(authorizationUrl.searchParams.get("redirect_uri"), `http://localhost:3000/api/auth/callback/${provider}`);
+      if (provider === "microsoft") assert.equal(authorizationUrl.pathname, "/consumers/oauth2/v2.0/authorize");
+    }
 
     const after = await db.select({ id: verification.id }).from(verification);
     const createdIds = after.map((row) => row.id).filter((id) => !baselineIds!.has(id));
-    assert.ok(response.status >= 200 && response.status < 400, "La creación del estado OAuth debe completarse sin error 500.");
-    assert.equal(createdIds.length, 1);
-    assert.match(createdIds[0]!, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    assert.equal(createdIds.length, 2);
+    for (const id of createdIds) assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   } finally {
     try {
       if (baselineIds) {

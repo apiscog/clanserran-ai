@@ -1,10 +1,10 @@
 # Clan Serran · Amigo Invisible
 
-Aplicación privada y responsive para organizar el amigo invisible familiar. Usa Next.js (App Router), TypeScript, Better Auth con Google, PostgreSQL en Neon, Drizzle ORM y Tailwind CSS.
+Aplicación privada y responsive para organizar el amigo invisible familiar. Usa Next.js (App Router), TypeScript, Better Auth con Google y Microsoft, PostgreSQL en Neon, Drizzle ORM y Tailwind CSS.
 
 ## Qué incluye
 
-- Acceso persistente con Google y edición del nombre familiar.
+- Acceso persistente con Google o con cuentas personales de Microsoft (Hotmail, Outlook y Live), y edición del nombre familiar.
 - Grupos privados con administrador local, código de seis dígitos y enlace aleatorio de invitación.
 - Estados de inscripciones abiertas, lista cerrada y sorteo realizado.
 - Preferencias privadas de regalo y exclusión dirigida del destinatario del año anterior.
@@ -21,6 +21,7 @@ No hay correos automáticos, login simulado ni datos familiares en el repositori
 - npm 10 o posterior.
 - Un proyecto PostgreSQL de Neon.
 - Credenciales OAuth 2.0 de Google de tipo **Aplicación web**.
+- Una aplicación de Microsoft Entra con plataforma **Web**, configurada exclusivamente para cuentas personales.
 
 ## Puesta en marcha local
 
@@ -48,6 +49,8 @@ Abre `http://localhost:3000`. Si faltan variables, la portada muestra un estado 
 | `BETTER_AUTH_URL` | URL pública, configurada solo en servidor | Origen canónico sin barra final: `http://localhost:3000` o la URL definitiva. |
 | `GOOGLE_CLIENT_ID` | Privada en este proyecto | ID del cliente OAuth de Google. |
 | `GOOGLE_CLIENT_SECRET` | Privada | Secreto del cliente OAuth de Google. |
+| `MICROSOFT_CLIENT_ID` | Privada en este proyecto | ID de la aplicación de Microsoft Entra. |
+| `MICROSOFT_CLIENT_SECRET` | Privada | Valor vigente del secreto de cliente de Microsoft. |
 | `TEST_DATABASE_URL` | Privada y opcional | Base PostgreSQL vacía e independiente para las pruebas de integración. Nunca usa `DATABASE_URL` como alternativa. |
 
 No hay variables `NEXT_PUBLIC_*`: el navegador no necesita credenciales ni acceso directo a la base de datos. `.env*` está ignorado salvo `.env.example`.
@@ -92,6 +95,35 @@ Better Auth sirve sus rutas en `/api/auth/[...all]`, conserva sesiones 30 días 
 
 Documentación relevante: [Google en Better Auth](https://better-auth.com/docs/1.6/authentication/google), [integración con Next.js](https://better-auth.com/docs/1.6/integrations/next) y [adaptador Drizzle](https://better-auth.com/docs/adapters/drizzle).
 
+## Microsoft OAuth y cuentas personales
+
+1. En Microsoft Entra, abre la aplicación registrada y confirma que los tipos de cuenta admitidos sean exclusivamente **cuentas personales de Microsoft**.
+2. En **Autenticación**, añade una plataforma de tipo **Web**. No uses la configuración de SPA para este flujo de servidor.
+3. Registra exactamente el callback local:
+
+   ```text
+   http://localhost:3000/api/auth/callback/microsoft
+   ```
+
+4. Registra exactamente el callback de producción:
+
+   ```text
+   https://clanserranai.vercel.app/api/auth/callback/microsoft
+   ```
+
+5. Añade a `.env.local` el ID de aplicación y el **valor** del secreto (no el identificador interno del secreto):
+
+   ```dotenv
+   MICROSOFT_CLIENT_ID=tu-id-de-aplicacion
+   MICROSOFT_CLIENT_SECRET=tu-valor-de-secreto
+   ```
+
+El proveedor integrado de Better Auth se configura con el tenant `consumers`, de modo que admite cuentas personales como Hotmail, Outlook, Live y otras cuentas personales válidas, pero no cuentas de trabajo o centro educativo. Si Microsoft no entrega un correo utilizable, Better Auth rechaza el acceso; no se crea ningún correo ficticio.
+
+Se conserva la política segura predeterminada de vinculación de Better Auth 1.7.7. No se configura `trustedProviders`: una identidad nueva solo se vincula implícitamente a un usuario existente con el mismo correo cuando el proveedor informa que el correo está verificado y el usuario local también lo tiene verificado. Si esas garantías no están presentes, el acceso se rechaza en vez de unir identidades por correo sin más. Tanto Google como Microsoft usan las tablas genéricas `user`, `account`, `session` y `verification` y el mismo ID interno de usuario.
+
+Los secretos de cliente de Microsoft tienen fecha de caducidad. Renuévalo antes de que venza y sustituye únicamente `MICROSOFT_CLIENT_SECRET` en `.env.local` y en Vercel Production; no cambies `MICROSOFT_CLIENT_ID`. Reinicia el servidor local y crea un nuevo despliegue de producción para que cada entorno tome el valor nuevo. Nunca guardes el secreto real en el repositorio.
+
 ## Base y pruebas de integración
 
 Las pruebas PostgreSQL crean identidades ficticias directamente como fixtures: no añaden un login alternativo ni prueban el acceso real con Google. Para habilitarlas, crea un **segundo proyecto Neon vacío** destinado solo a pruebas (o una base realmente separada en otro endpoint primario) y guarda su cadena en `TEST_DATABASE_URL` dentro de `.env.local`. Conserva en `DATABASE_URL` la base de la aplicación.
@@ -135,7 +167,7 @@ El despliegue no ejecuta migraciones ni pruebas automáticamente: el script de b
    ```
 
 3. Importa el repositorio en Vercel, selecciona Next.js y solicita `clanserranai` como nombre del proyecto. El dominio deseado es `clanserranai.vercel.app`, sujeto a disponibilidad. No personalices los comandos: instalación `npm install`, build `npm run build` y directorio de salida detectado por Next.js.
-4. En **Settings → Environment Variables**, ámbito **Production**, configura exactamente estas cinco variables:
+4. En **Settings → Environment Variables**, ámbito **Production**, configura exactamente estas siete variables:
 
    | Variable | Valor en producción |
    | --- | --- |
@@ -144,11 +176,14 @@ El despliegue no ejecuta migraciones ni pruebas automáticamente: el script de b
    | `BETTER_AUTH_URL` | Origen HTTPS definitivo sin barra final, por ejemplo `https://clanserranai.vercel.app`. |
    | `GOOGLE_CLIENT_ID` | ID del cliente OAuth web de Google. |
    | `GOOGLE_CLIENT_SECRET` | Secreto del mismo cliente OAuth. |
+   | `MICROSOFT_CLIENT_ID` | ID de la aplicación Web de Microsoft Entra. |
+   | `MICROSOFT_CLIENT_SECRET` | Valor vigente del secreto de cliente de Microsoft. |
 
    No configures `TEST_DATABASE_URL` en Production: solo se usa al ejecutar voluntariamente las pruebas de integración.
 
-5. Despliega. Si el dominio deseado no está disponible, usa la URL definitiva asignada y actualiza **antes de probar el acceso** tanto `BETTER_AUTH_URL` como la URI de callback de Google; después vuelve a desplegar.
-6. Comprueba la portada, el acceso con Google, la persistencia de sesión y un recorrido controlado con datos ficticios. Los previews no están incluidos en `trustedOrigins`; para este primer despliegue valida OAuth únicamente en el dominio canónico de producción.
+5. En la aplicación de Microsoft Entra, verifica que la plataforma **Web** incluya `https://clanserranai.vercel.app/api/auth/callback/microsoft` y que la aplicación siga limitada a cuentas personales.
+6. Despliega. Si el dominio deseado no está disponible, usa la URL definitiva asignada y actualiza **antes de probar el acceso** `BETTER_AUTH_URL` y las URI de callback de ambos proveedores; después vuelve a desplegar.
+7. Comprueba la portada, ambos accesos, la persistencia de sesión y un recorrido controlado con datos ficticios. Los previews no están incluidos en `trustedOrigins`; valida OAuth únicamente en el dominio canónico de producción.
 
 Consulta los límites vigentes directamente en [Vercel](https://vercel.com/docs/limits) y [Neon](https://neon.com/pricing) antes de desplegar. No se fijan cuotas en este documento porque pueden cambiar.
 
