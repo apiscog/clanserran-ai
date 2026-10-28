@@ -73,6 +73,7 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 .button:disabled { cursor: not-allowed; opacity: .55; }
 .button.full { width: 100%; }
 .auth-options { width: min(100%, 430px); display: grid; gap: 14px; }
+.auth-local-link { width: min(100%, 430px); }
 .auth-option { display: grid; gap: 7px; }
 .auth-option .hint { text-align: center; }
 
@@ -83,9 +84,33 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 }
 .field textarea { min-height: 130px; resize: vertical; }
 .hint { color: var(--muted); font-size: .86rem; }
+.input-error { border-color: var(--error) !important; box-shadow: 0 0 0 1px var(--error); }
 .field-error, .error { color: var(--error); font-size: .88rem; font-weight: 650; }
+.field-error { display: inline-flex; align-items: center; gap: 6px; }
 .success { color: var(--success); font-weight: 650; }
 .notice { border-left: 4px solid #111; padding: 12px 16px; background: var(--surface); }
+
+.password-control { position: relative; }
+.password-control input { padding-right: 112px; }
+.password-toggle {
+  position: absolute; inset-block: 4px; right: 4px; min-height: 40px; display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 6px; padding: 6px 9px; background: #fff; color: #111; font-size: .8rem; font-weight: 700; cursor: pointer;
+}
+.password-toggle:hover { background: var(--surface); }
+.password-help { display: grid; gap: 8px; padding: 12px; border-radius: 8px; background: var(--surface); }
+.requirements { list-style: none; display: grid; gap: 5px; margin: 0; padding: 0; font-size: .83rem; }
+.requirement { display: flex; align-items: center; gap: 7px; color: var(--error); }
+.requirement.valid { color: var(--success); }
+.recovery-code {
+  display: block; overflow-wrap: anywhere; border: 2px solid #111; border-radius: 9px; padding: 18px;
+  background: var(--surface); font: 800 clamp(1.15rem, 5vw, 1.7rem)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-align: center;
+}
+
+@media print {
+  .site-header, .button, .password-help { display: none !important; }
+  .card { border: 0; }
+  .recovery-code { border: 2px solid #111; }
+}
 
 .status { display: inline-flex; align-items: center; gap: 7px; font-size: .86rem; font-weight: 720; }
 .member-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }

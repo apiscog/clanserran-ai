@@ -1,5 +1,9 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
+import { usernameClient } from "better-auth/client/plugins";
+import { passkeyClient } from "@better-auth/passkey/client";
 
-export const authClient = createAuthClient();
+export const authClient = createAuthClient({
+  plugins: [usernameClient({ displayUsername: false }), passkeyClient()],
+});

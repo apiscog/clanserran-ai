@@ -97,8 +97,16 @@ export async function assertIsolatedTestDatabase(testDatabaseUrl: string, applic
 }
 
 export async function assertTestSchemaIsMigrated(pool: Pool) {
-  const result = await pool.query<{ present: string | null }>("select to_regclass('public.groups')::text as present");
-  if (!result.rows[0]?.present) {
+  const result = await pool.query<{ groups_present: string | null; passkey_present: string | null; username_present: boolean }>(
+    `select
+      to_regclass('public.groups')::text as groups_present,
+      to_regclass('public.passkey')::text as passkey_present,
+      exists (
+        select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'user' and column_name = 'username'
+      ) as username_present`,
+  );
+  if (!result.rows[0]?.groups_present || !result.rows[0]?.passkey_present || !result.rows[0]?.username_present) {
     throw new Error("La base de pruebas no tiene las migraciones. Ejecuta: npm.cmd run db:migrate:test");
   }
 }

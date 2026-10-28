@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, CirclePlus, DoorOpen, Euro, Gift, ShieldCheck, Users } from "lucide-react";
 import { ProfileForm } from "@/components/action-forms";
+import { PasskeySetup } from "@/components/local-access";
 import { SignOut } from "@/components/sign-out";
 import { getMyGroups, getOwnProfile } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
@@ -26,6 +27,8 @@ export default async function HomePage() {
           <ProfileForm defaultName={profile.name} />
         </section>
       )}
+
+      {profile.username && <PasskeySetup />}
 
       <div className="grid two">
         <Link className="card stack" href="/grupos/crear"><CirclePlus aria-hidden="true" size={28} /><h2>Crear grupo</h2><p className="muted">Prepara una nueva celebración.</p></Link>

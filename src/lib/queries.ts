@@ -29,7 +29,7 @@ export async function getMyGroups(userId: string) {
 export async function getOwnProfile(userId: string) {
   noStore();
   const [profile] = await getDb()
-    .select({ name: user.name, displayNameConfirmed: user.displayNameConfirmed })
+    .select({ name: user.name, username: user.username, displayNameConfirmed: user.displayNameConfirmed })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);

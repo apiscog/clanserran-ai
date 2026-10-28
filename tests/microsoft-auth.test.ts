@@ -27,7 +27,7 @@ test("la validación del servidor exige y acepta las credenciales Microsoft", ()
 });
 
 test("Better Auth configura Microsoft para cuentas personales sin relajar la vinculación", () => {
-  const authSource = read("src/lib/auth.ts");
+  const authSource = read("src/lib/auth-config.ts");
   assert.match(authSource, /microsoft:\s*\{/);
   assert.match(authSource, /tenantId:\s*["']consumers["']/);
   assert.doesNotMatch(authSource, /trustedProviders|disableImplicitLinking|requireLocalEmailVerified/);
@@ -43,7 +43,7 @@ test("la portada conserva Google y ofrece Microsoft con destino /inicio", () => 
   assert.match(component, /authClient\.signIn\.social\(\{/);
   assert.match(component, /Continuar con \$\{copy\.label\}/);
   assert.match(component, /Para cuentas Hotmail, Outlook o Live/);
-  assert.match(landing, /: "\/inicio"/);
+  assert.match(landing, /safeDestination\(params\.next\)/);
 });
 
 test("las credenciales Microsoft permanecen fuera del código cliente", () => {

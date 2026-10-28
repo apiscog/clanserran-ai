@@ -1,10 +1,11 @@
 # Clan Serran · Amigo Invisible
 
-Aplicación privada y responsive para organizar el amigo invisible familiar. Usa Next.js (App Router), TypeScript, Better Auth con Google y Microsoft, PostgreSQL en Neon, Drizzle ORM y Tailwind CSS.
+Aplicación privada y responsive para organizar el amigo invisible familiar. Usa Next.js (App Router), TypeScript, Better Auth con Google, Microsoft y acceso sin correo, PostgreSQL en Neon, Drizzle ORM y Tailwind CSS.
 
 ## Qué incluye
 
-- Acceso persistente con Google o con cuentas personales de Microsoft (Hotmail, Outlook y Live), y edición del nombre familiar.
+- Acceso persistente con Google, cuentas personales de Microsoft (Hotmail, Outlook y Live) o usuario y contraseña sin correo.
+- Passkey opcional para entrar con huella, Face ID o PIN del dispositivo, y código de recuperación de un solo uso.
 - Grupos privados con administrador local, código de seis dígitos y enlace aleatorio de invitación.
 - Estados de inscripciones abiertas, lista cerrada y sorteo realizado.
 - Preferencias privadas de regalo y exclusión dirigida del destinatario del año anterior.
@@ -95,6 +96,25 @@ Better Auth sirve sus rutas en `/api/auth/[...all]`, conserva sesiones 30 días 
 
 Documentación relevante: [Google en Better Auth](https://better-auth.com/docs/1.6/authentication/google), [integración con Next.js](https://better-auth.com/docs/1.6/integrations/next) y [adaptador Drizzle](https://better-auth.com/docs/adapters/drizzle).
 
+## Acceso sin correo
+
+El botón **Acceso sin correo** está disponible en la portada. Una persona que ya tenga este acceso puede volver cualquier día con su usuario y contraseña o, si lo activó, con la huella, Face ID o PIN del dispositivo.
+
+La creación de una cuenta local solo aparece al abrir una invitación válida de un grupo con las inscripciones abiertas. El alta no incorpora automáticamente al grupo: después de guardar el código de recuperación, la persona vuelve a la invitación y confirma su entrada. No existe un registro público alternativo ni una cuenta administradora global.
+
+- El usuario se normaliza mientras se escribe: minúsculas, sin tildes, espacios ni signos; debe comenzar por letra y tener entre 4 y 24 caracteres.
+- La contraseña tiene un mínimo deliberado de 4 caracteres y exige al menos una minúscula, una mayúscula y un número.
+- Better Auth guarda la contraseña con hash en una cuenta `credential`. El correo técnico aleatorio bajo `users.invalid` nunca se muestra ni se usa para enviar mensajes.
+- La passkey es opcional y se ofrece después de entrar. Requiere HTTPS en producción; `localhost` es la excepción admitida por los navegadores para desarrollo.
+- El código de recuperación se muestra una sola vez y solo se guarda como hash. Al utilizarlo se cierran las sesiones existentes, se cambia la contraseña y se entrega un código nuevo; el anterior deja de servir.
+- Los límites de intentos de inicio, alta y recuperación se guardan en PostgreSQL, por lo que se mantienen entre invocaciones de Vercel.
+
+Este flujo no añade variables de entorno. `BETTER_AUTH_SECRET` debe permanecer estable: cambiarlo invalida sesiones y códigos de recuperación. Para habilitarlo en una base ya existente, aplica la migración aditiva más reciente antes de desplegar:
+
+```powershell
+npm.cmd run db:migrate
+```
+
 ## Microsoft OAuth y cuentas personales
 
 1. En Microsoft Entra, abre la aplicación registrada y confirma que los tipos de cuenta admitidos sean exclusivamente **cuentas personales de Microsoft**.
@@ -120,7 +140,7 @@ Documentación relevante: [Google en Better Auth](https://better-auth.com/docs/1
 
 El proveedor integrado de Better Auth se configura con el tenant `consumers`, de modo que admite cuentas personales como Hotmail, Outlook, Live y otras cuentas personales válidas, pero no cuentas de trabajo o centro educativo. Si Microsoft no entrega un correo utilizable, Better Auth rechaza el acceso; no se crea ningún correo ficticio.
 
-Se conserva la política segura predeterminada de vinculación de Better Auth 1.7.7. No se configura `trustedProviders`: una identidad nueva solo se vincula implícitamente a un usuario existente con el mismo correo cuando el proveedor informa que el correo está verificado y el usuario local también lo tiene verificado. Si esas garantías no están presentes, el acceso se rechaza en vez de unir identidades por correo sin más. Tanto Google como Microsoft usan las tablas genéricas `user`, `account`, `session` y `verification` y el mismo ID interno de usuario.
+Se conserva la política segura predeterminada de vinculación de Better Auth 1.7.14. No se configura `trustedProviders`: una identidad nueva solo se vincula implícitamente a un usuario existente con el mismo correo cuando el proveedor informa que el correo está verificado y el usuario local también lo tiene verificado. Si esas garantías no están presentes, el acceso se rechaza en vez de unir identidades por correo sin más. Tanto Google como Microsoft usan las tablas genéricas `user`, `account`, `session` y `verification` y el mismo ID interno de usuario.
 
 Los secretos de cliente de Microsoft tienen fecha de caducidad. Renuévalo antes de que venza y sustituye únicamente `MICROSOFT_CLIENT_SECRET` en `.env.local` y en Vercel Production; no cambies `MICROSOFT_CLIENT_ID`. Reinicia el servidor local y crea un nuevo despliegue de producción para que cada entorno tome el valor nuevo. Nunca guardes el secreto real en el repositorio.
 
