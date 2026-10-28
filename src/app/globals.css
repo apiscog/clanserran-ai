@@ -14,6 +14,9 @@
 html { color-scheme: light; }
 body {
   margin: 0;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
   background: var(--background);
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -45,6 +48,18 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 .site-header { border-bottom: 1px solid var(--border); background: rgba(255,255,255,.96); }
 .site-header .shell { min-height: 68px; }
 .brand { font-weight: 800; text-decoration: none; letter-spacing: -.02em; }
+.site-footer { margin-top: auto; border-top: 1px solid var(--border); background: #fff; }
+.site-footer-content {
+  min-height: 112px; padding-block: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+}
+.instagram-link {
+  min-height: 44px; display: inline-flex; align-items: center; gap: 9px; border-radius: 8px; padding: 8px 10px;
+  font-weight: 700; text-decoration: none;
+}
+.instagram-link:hover { background: var(--surface); text-decoration: underline; }
+@media (min-width: 640px) {
+  .site-footer-content { min-height: 96px; flex-direction: row; justify-content: space-between; text-align: left; }
+}
 .hero { padding-block: clamp(52px, 11vw, 112px); }
 .hero-copy { max-width: 780px; display: grid; gap: 24px; }
 .hero-copy > p { max-width: 650px; font-size: 1.12rem; }
@@ -107,7 +122,7 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 }
 
 @media print {
-  .site-header, .button, .password-help { display: none !important; }
+  .site-header, .site-footer, .button, .password-help { display: none !important; }
   .card { border: 0; }
   .recovery-code { border: 2px solid #111; }
 }
