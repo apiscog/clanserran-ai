@@ -5,12 +5,13 @@ import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/db/schema";
-import { assignments, groups, user } from "../src/db/schema";
+import { assignments, groups, memberships, user } from "../src/db/schema";
 import { DomainError } from "../src/lib/domain";
 import {
   closeRegistrations,
   confirmPreviousRecipient,
   createGroup,
+  deleteGroup,
   getMemberFingerprint,
   getPrivateResultForUser,
   joinGroupByCode,
@@ -109,6 +110,15 @@ test("recorrido completo de amigo invisible con tres identidades", { skip: !test
 
     await rejectsWithCode(joinGroupByCode(db, randomUUID(), created.joinCode), "INVALID_CODE");
     await rejectsWithCode(joinGroupByInvite(db, randomUUID(), created.inviteToken), "INVALID_INVITE");
+
+    await rejectsWithCode(deleteGroup(db, userB, groupId), "FORBIDDEN");
+    await deleteGroup(db, userA, groupId);
+    assert.equal((await db.select().from(groups).where(eq(groups.id, groupId))).length, 0);
+    assert.equal((await db.select().from(memberships).where(eq(memberships.groupId, groupId))).length, 0);
+    assert.equal((await db.select().from(assignments).where(eq(assignments.groupId, groupId))).length, 0);
+    assert.equal((await db.select().from(user).where(inArray(user.id, [...userIds]))).length, 3);
+    await rejectsWithCode(deleteGroup(db, userA, groupId), "NOT_FOUND");
+    groupId = undefined;
   } finally {
     try {
       if (groupId) await db.delete(groups).where(eq(groups.id, groupId));

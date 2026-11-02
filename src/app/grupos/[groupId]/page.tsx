@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, CheckCircle2, CircleDashed, ClipboardCheck, Euro, Gift, LockKeyhole, UserMinus, Users } from "lucide-react";
 import { closeRegistrationsAction, leaveGroupAction, removeMemberAction, reopenRegistrationsAction } from "@/app/actions";
 import { DrawForm, PreferencesForm, PreviousForm, ShareInvite } from "@/components/action-forms";
+import { DeleteGroupDialog } from "@/components/delete-group-dialog";
 import { getServerEnv } from "@/lib/env";
 import { getGroupPage } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
@@ -102,6 +103,14 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
       )}
 
       {group.status === "open" && !isAdmin && <form action={leaveGroupAction}><input type="hidden" name="groupId" value={groupId} /><button className="button danger" type="submit">Salir del grupo</button></form>}
+
+      {isAdmin && (
+        <section className="card stack danger-zone" aria-labelledby="delete-group-section">
+          <div><p className="eyebrow">Administración</p><h2 id="delete-group-section">Eliminar grupo</h2></div>
+          <p className="muted">Borra definitivamente este grupo y toda su información. Las cuentas de las personas participantes no se eliminarán.</p>
+          <DeleteGroupDialog groupId={groupId} groupName={group.name} />
+        </section>
+      )}
     </main>
   );
 }

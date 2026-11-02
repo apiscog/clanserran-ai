@@ -12,6 +12,7 @@ import {
   closeRegistrations,
   confirmPreviousRecipient,
   createGroup,
+  deleteGroup,
   joinGroupByCode,
   joinGroupByInvite,
   runGroupDraw,
@@ -70,6 +71,21 @@ export async function createGroupAction(_: ActionState, formData: FormData): Pro
       exchangeDate: parsed.data.exchangeDate || null,
     });
     redirect(`/grupos/${created.id}`);
+  } catch (error) {
+    if ((error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw error;
+    return errorState(error);
+  }
+}
+
+export async function deleteGroupAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const currentUser = await requireUser();
+    const groupId = uuidValue(formData, "groupId");
+    if (value(formData, "confirm") !== "yes") {
+      throw new DomainError("Debes confirmar que quieres eliminar el grupo.", "CONFIRMATION_REQUIRED");
+    }
+    await deleteGroup(getDb(), currentUser.id, groupId);
+    redirect("/inicio?grupo=eliminado");
   } catch (error) {
     if ((error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw error;
     return errorState(error);

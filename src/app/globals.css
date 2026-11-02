@@ -85,6 +85,7 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 .button.secondary { background: #fff; color: #111; }
 .button.secondary:hover { background: #f1f1f1; }
 .button.danger { border-color: #8b1a1a; color: #8b1a1a; background: #fff; }
+.button.danger:hover { background: #fff5f5; }
 .button:disabled { cursor: not-allowed; opacity: .55; }
 .button.full { width: 100%; }
 .auth-options { width: min(100%, 430px); display: grid; gap: 14px; }
@@ -104,6 +105,17 @@ h3 { font-size: 1.15rem; line-height: 1.25; }
 .field-error { display: inline-flex; align-items: center; gap: 6px; }
 .success { color: var(--success); font-weight: 650; }
 .notice { border-left: 4px solid #111; padding: 12px 16px; background: var(--surface); }
+.danger-zone { border-color: #c98f8f; }
+.danger-heading { color: var(--error); align-items: flex-start; }
+.confirmation-dialog {
+  width: min(calc(100% - 32px), 590px); border: 1px solid var(--border); border-radius: 14px; padding: clamp(22px, 5vw, 32px);
+  background: #fff; color: var(--foreground); box-shadow: 0 24px 70px rgba(0, 0, 0, .22);
+}
+.confirmation-dialog::backdrop { background: rgba(17, 17, 17, .58); }
+.dialog-actions { display: flex; flex-direction: column-reverse; gap: 12px; }
+@media (min-width: 560px) {
+  .dialog-actions { flex-direction: row; justify-content: flex-end; }
+}
 
 .password-control { position: relative; }
 .password-control input { padding-right: 112px; }

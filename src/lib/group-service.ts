@@ -70,6 +70,21 @@ export async function joinGroupByInvite(db: Database, actorId: string, token: st
   });
 }
 
+export async function deleteGroup(db: Database, actorId: string, groupId: string) {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${groupId}))`);
+    const [group] = await tx
+      .select({ adminId: groups.adminId })
+      .from(groups)
+      .where(eq(groups.id, groupId))
+      .limit(1)
+      .for("update");
+    if (!group) throw new DomainError("El grupo ya no existe.", "NOT_FOUND");
+    assertAdmin(group.adminId, actorId);
+    await tx.delete(groups).where(eq(groups.id, groupId));
+  });
+}
+
 export async function saveGiftPreferences(db: Database, actorId: string, groupId: string, input: GiftPreferences) {
   const [updated] = await db
     .update(memberships)
