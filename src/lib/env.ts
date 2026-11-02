@@ -18,6 +18,14 @@ const serverEnvSchema = z.object({
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+const emailEnvSchema = z.object({
+  BREVO_API_KEY: z.string().min(1),
+  BREVO_SENDER_EMAIL: z.string().email(),
+  BREVO_REPLY_TO_EMAIL: z.string().email(),
+});
+
+export type EmailEnv = z.infer<typeof emailEnvSchema>;
+
 export function getServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv {
   const result = serverEnvSchema.safeParse(source);
   if (!result.success) {
@@ -29,4 +37,19 @@ export function getServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv
 
 export function isServerConfigured(source: NodeJS.ProcessEnv = process.env) {
   return serverEnvSchema.safeParse(source).success;
+}
+
+export function getEmailEnv(source: NodeJS.ProcessEnv = process.env): EmailEnv | null {
+  const values = {
+    BREVO_API_KEY: source.BREVO_API_KEY,
+    BREVO_SENDER_EMAIL: source.BREVO_SENDER_EMAIL,
+    BREVO_REPLY_TO_EMAIL: source.BREVO_REPLY_TO_EMAIL,
+  };
+  if (Object.values(values).every((value) => !value)) return null;
+  const result = emailEnvSchema.safeParse(values);
+  if (!result.success) {
+    const invalid = result.error.issues.map((issue) => issue.path.join(".")).join(", ");
+    throw new Error(`Configuración incompleta. Revisa estas variables privadas: ${invalid}`);
+  }
+  return result.data;
 }

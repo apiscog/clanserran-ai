@@ -11,10 +11,11 @@ Aplicación privada y responsive para organizar el amigo invisible familiar. Usa
 - Preferencias privadas de regalo y exclusión dirigida del destinatario del año anterior.
 - Sorteo criptográficamente aleatorizado mediante búsqueda acotada; no se promete uniformidad estadística.
 - Resultado privado: cada persona consulta únicamente su destinatario y sus preferencias actuales.
+- Aviso transaccional opcional mediante Brevo para participantes con correo real, con cola persistente y reintentos sin repetir el sorteo.
 - Autorización en servidor, rate limit persistente para códigos, transacciones, bloqueo por grupo y restricciones de base de datos.
 - Interfaz en español, mobile first, accesible por teclado y compatible con `prefers-reduced-motion`.
 
-No hay correos automáticos, login simulado ni datos familiares en el repositorio.
+No hay login simulado ni datos familiares en el repositorio. Los correos solo se habilitan al configurar voluntariamente las credenciales privadas de Brevo.
 
 ## Requisitos
 
@@ -52,6 +53,9 @@ Abre `http://localhost:3000`. Si faltan variables, la portada muestra un estado 
 | `GOOGLE_CLIENT_SECRET` | Privada | Secreto del cliente OAuth de Google. |
 | `MICROSOFT_CLIENT_ID` | Privada en este proyecto | ID de la aplicación de Microsoft Entra. |
 | `MICROSOFT_CLIENT_SECRET` | Privada | Valor vigente del secreto de cliente de Microsoft. |
+| `BREVO_API_KEY` | Privada y opcional en conjunto | Clave API para los avisos transaccionales de Brevo. |
+| `BREVO_SENDER_EMAIL` | Privada y opcional en conjunto | Dirección real verificada en Brevo; no uses la sustitución técnica `@brevosend.com`. |
+| `BREVO_REPLY_TO_EMAIL` | Privada y opcional en conjunto | Dirección que recibirá las respuestas a los avisos. |
 | `TEST_DATABASE_URL` | Privada y opcional | Base PostgreSQL vacía e independiente para las pruebas de integración. Nunca usa `DATABASE_URL` como alternativa. |
 
 No hay variables `NEXT_PUBLIC_*`: el navegador no necesita credenciales ni acceso directo a la base de datos. `.env*` está ignorado salvo `.env.example`.
@@ -114,6 +118,18 @@ Este flujo no añade variables de entorno. `BETTER_AUTH_SECRET` debe permanecer 
 ```powershell
 npm.cmd run db:migrate
 ```
+
+## Avisos por correo con Brevo
+
+Los avisos son opcionales y se envían después de confirmar el sorteo en PostgreSQL. Un fallo del proveedor no revierte el sorteo: el aviso queda pendiente para que la persona administradora pueda reintentarlo. Las cuentas de **Acceso sin correo** usan direcciones internas bajo `users.invalid` y se excluyen siempre.
+
+1. En Brevo, valida la cuenta y una dirección remitente.
+2. Crea una clave en **SMTP y API → Claves API**.
+3. Configura `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` y `BREVO_REPLY_TO_EMAIL` en `.env.local` y, posteriormente, en Vercel Production. Las tres son privadas.
+4. Usa como `BREVO_SENDER_EMAIL` la dirección verificada original. Brevo puede sustituir el dominio técnico por `@brevosend.com`; no copies esa sustitución a la configuración.
+5. Aplica la migración `0003_strange_starfox.sql` antes de desplegar esta versión.
+
+El remitente visible y el encabezado son **AmigoInvisibleClan**. Cada correo contiene solo el resultado de su destinatario, las preferencias actuales en el momento del envío, presupuesto, fecha y un enlace autenticado al resultado vigente. La API se invoca desde el servidor; la clave y el contenido no llegan al navegador ni se escriben en logs. Las pruebas usan un transporte aislado y nunca llaman a Brevo.
 
 ## Microsoft OAuth y cuentas personales
 
@@ -187,7 +203,7 @@ El despliegue no ejecuta migraciones ni pruebas automáticamente: el script de b
    ```
 
 3. Importa el repositorio en Vercel, selecciona Next.js y solicita `clanserranai` como nombre del proyecto. El dominio deseado es `clanserranai.vercel.app`, sujeto a disponibilidad. No personalices los comandos: instalación `npm install`, build `npm run build` y directorio de salida detectado por Next.js.
-4. En **Settings → Environment Variables**, ámbito **Production**, configura exactamente estas siete variables:
+4. En **Settings → Environment Variables**, ámbito **Production**, configura las siete variables principales y, para habilitar los avisos, las tres variables de Brevo:
 
    | Variable | Valor en producción |
    | --- | --- |
@@ -198,6 +214,9 @@ El despliegue no ejecuta migraciones ni pruebas automáticamente: el script de b
    | `GOOGLE_CLIENT_SECRET` | Secreto del mismo cliente OAuth. |
    | `MICROSOFT_CLIENT_ID` | ID de la aplicación Web de Microsoft Entra. |
    | `MICROSOFT_CLIENT_SECRET` | Valor vigente del secreto de cliente de Microsoft. |
+   | `BREVO_API_KEY` | Clave API privada de Brevo. |
+   | `BREVO_SENDER_EMAIL` | Dirección remitente original verificada en Brevo. |
+   | `BREVO_REPLY_TO_EMAIL` | Dirección privada a la que llegarán las respuestas. |
 
    No configures `TEST_DATABASE_URL` en Production: solo se usa al ejecutar voluntariamente las pruebas de integración.
 

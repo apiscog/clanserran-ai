@@ -1,9 +1,10 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db";
-import { assignments, groups, memberships, user } from "@/db/schema";
+import { assignments, emailDeliveries, groups, memberships, user } from "@/db/schema";
 import { assertAdmin, assertCanReadAssignment, assertCanRunDraw, DomainError } from "@/lib/domain";
 import { findDraw } from "@/lib/draw";
+import { isDeliverableEmail } from "@/lib/email-address";
 
 export type GiftPreferences = {
   favoriteColor: string;
@@ -179,6 +180,16 @@ export async function runGroupDraw(db: Database, actorId: string, groupId: strin
         .where(and(eq(groups.id, groupId), ne(groups.status, "drawn")))
         .returning({ id: groups.id });
       if (!updated) throw new DomainError("Este grupo ya tiene sorteo.", "ALREADY_DRAWN");
+      const participants = await tx
+        .select({ id: user.id, email: user.email, emailVerified: user.emailVerified })
+        .from(user)
+        .where(inArray(user.id, result.assignments.map((assignment) => assignment.giverId)));
+      const eligibleGivers = participants
+        .filter((participant) => isDeliverableEmail(participant.email, participant.emailVerified))
+        .map((participant) => participant.id);
+      if (eligibleGivers.length) {
+        await tx.insert(emailDeliveries).values(eligibleGivers.map((giverId) => ({ groupId, giverId }))).onConflictDoNothing();
+      }
       return result.assignments;
     },
     { isolationLevel: "serializable" },

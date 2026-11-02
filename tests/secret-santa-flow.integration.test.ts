@@ -5,7 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../src/db/schema";
-import { assignments, groups, memberships, user } from "../src/db/schema";
+import { assignments, emailDeliveries, groups, memberships, user } from "../src/db/schema";
 import { DomainError } from "../src/lib/domain";
 import {
   closeRegistrations,
@@ -20,6 +20,8 @@ import {
   saveGiftPreferences,
   type GiftPreferences,
 } from "../src/lib/group-service";
+import { deliverPendingDrawEmails, prepareDrawEmailRetry } from "../src/lib/email-delivery-service";
+import { EmailTransportError, type EmailTransport } from "../src/lib/email-transport";
 import {
   assertIsolatedTestDatabase,
   assertTestSchemaIsMigrated,
@@ -79,6 +81,41 @@ test("recorrido completo de amigo invisible con tres identidades", { skip: !test
     await rejectsWithCode(runGroupDraw(db, userC, groupId, fingerprint), "FORBIDDEN");
     await runGroupDraw(db, userA, groupId, fingerprint);
 
+    const queued = await db.select().from(emailDeliveries).where(eq(emailDeliveries.groupId, groupId));
+    assert.equal(queued.length, 3);
+    assert.ok(queued.every((delivery) => delivery.status === "pending"));
+
+    const successfulMessages: Parameters<EmailTransport["send"]>[0][] = [];
+    let failUserBOnce = true;
+    const transport: EmailTransport = {
+      async send(input) {
+        if (input.recipient.email.startsWith("b-") && failUserBOnce) {
+          failUserBOnce = false;
+          throw new EmailTransportError("fixture_failure");
+        }
+        successfulMessages.push(input);
+        return { messageId: `fixture-${input.idempotencyKey}` };
+      },
+    };
+    const firstDelivery = await deliverPendingDrawEmails(db, groupId, "https://example.test", transport);
+    assert.deepEqual(firstDelivery, { sent: 2, failed: 1 });
+    await rejectsWithCode(prepareDrawEmailRetry(db, userB, groupId), "FORBIDDEN");
+    await prepareDrawEmailRetry(db, userA, groupId);
+    const retryDelivery = await deliverPendingDrawEmails(db, groupId, "https://example.test", transport);
+    assert.deepEqual(retryDelivery, { sent: 1, failed: 0 });
+    assert.equal(successfulMessages.length, 3);
+    assert.equal(new Set(successfulMessages.map((message) => message.idempotencyKey)).size, 3);
+    assert.deepEqual(await deliverPendingDrawEmails(db, groupId, "https://example.test", transport), { sent: 0, failed: 0 });
+    assert.equal(successfulMessages.length, 3);
+
+    for (const sent of successfulMessages) {
+      const giverId = sent.recipient.email.startsWith("a-") ? userA : sent.recipient.email.startsWith("b-") ? userB : userC;
+      const privateResult = await getPrivateResultForUser(db, groupId, giverId);
+      assert.match(sent.message.text, new RegExp(`Te toca regalar a: ${privateResult.recipientName}`));
+      assert.match(sent.message.text, new RegExp(privateResult.favoriteColor!));
+      assert.match(sent.message.html, /AmigoInvisibleClan/);
+    }
+
     const firstAssignments = await db.select().from(assignments).where(eq(assignments.groupId, groupId));
     assert.equal(firstAssignments.length, 3);
     assert.deepEqual(new Set(firstAssignments.map((item) => item.giverId)), new Set(userIds));
@@ -116,6 +153,7 @@ test("recorrido completo de amigo invisible con tres identidades", { skip: !test
     assert.equal((await db.select().from(groups).where(eq(groups.id, groupId))).length, 0);
     assert.equal((await db.select().from(memberships).where(eq(memberships.groupId, groupId))).length, 0);
     assert.equal((await db.select().from(assignments).where(eq(assignments.groupId, groupId))).length, 0);
+    assert.equal((await db.select().from(emailDeliveries).where(eq(emailDeliveries.groupId, groupId))).length, 0);
     assert.equal((await db.select().from(user).where(inArray(user.id, [...userIds]))).length, 3);
     await rejectsWithCode(deleteGroup(db, userA, groupId), "NOT_FOUND");
     groupId = undefined;

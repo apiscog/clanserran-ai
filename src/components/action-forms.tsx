@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Check, Copy, Gift, LoaderCircle, Share2 } from "lucide-react";
+import { Check, Copy, Gift, LoaderCircle, RefreshCw, Share2 } from "lucide-react";
 import {
   createGroupAction,
   joinByCodeAction,
@@ -10,6 +10,7 @@ import {
   savePreferencesAction,
   confirmPreviousAction,
   updateProfileAction,
+  retryDrawEmailsAction,
 } from "@/app/actions";
 import { initialActionState, type ActionState } from "@/lib/validation";
 
@@ -79,6 +80,15 @@ export function PreviousForm({ groupId, members, current }: { groupId: string; m
 export function DrawForm({ groupId, memberFingerprint }: { groupId: string; memberFingerprint: string }) {
   const [state, action] = useActionState(runDrawAction, initialActionState);
   return <form action={action} className="stack"><input type="hidden" name="groupId" value={groupId} /><input type="hidden" name="memberFingerprint" value={memberFingerprint} /><label className="cluster"><input type="checkbox" name="confirm" value="yes" required /> He revisado la lista definitiva y quiero realizar el sorteo.</label><Feedback state={state} /><button className="button" type="submit"><Gift aria-hidden="true" size={20} /> Realizar sorteo</button></form>;
+}
+
+export function EmailRetryForm({ groupId }: { groupId: string }) {
+  const [state, action] = useActionState(retryDrawEmailsAction, initialActionState);
+  return <form action={action} className="stack">
+    <input type="hidden" name="groupId" value={groupId} />
+    <Feedback state={state} />
+    <button className="button secondary" type="submit"><RefreshCw aria-hidden="true" size={19} /> Reintentar avisos pendientes</button>
+  </form>;
 }
 
 export function ShareInvite({ url }: { url: string }) {

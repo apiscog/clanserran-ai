@@ -20,6 +20,9 @@ import {
 } from "@/lib/group-service";
 import { requireUser } from "@/lib/session";
 import { createGroupSchema, fieldErrors, preferencesSchema, profileSchema, type ActionState } from "@/lib/validation";
+import { deliverPendingDrawEmails, prepareDrawEmailRetry } from "@/lib/email-delivery-service";
+import { createBrevoTransport } from "@/lib/email-transport";
+import { getEmailEnv, getServerEnv } from "@/lib/env";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -236,9 +239,41 @@ export async function runDrawAction(_: ActionState, formData: FormData): Promise
     const currentUser = await requireUser();
     const groupId = uuidValue(formData, "groupId");
     if (value(formData, "confirm") !== "yes") throw new DomainError("Confirma la lista definitiva antes del sorteo.", "CONFIRMATION_REQUIRED");
-    await runGroupDraw(getDb(), currentUser.id, groupId, value(formData, "memberFingerprint"));
+    const db = getDb();
+    await runGroupDraw(db, currentUser.id, groupId, value(formData, "memberFingerprint"));
+    let emailMessage = "";
+    try {
+      const emailEnv = getEmailEnv();
+      if (emailEnv) {
+        const delivery = await deliverPendingDrawEmails(db, groupId, getServerEnv().BETTER_AUTH_URL, createBrevoTransport(emailEnv));
+        emailMessage = delivery.failed
+          ? ` ${delivery.sent} avisos enviados y ${delivery.failed} pendientes de reintento.`
+          : delivery.sent ? ` ${delivery.sent} avisos enviados por correo.` : "";
+      } else {
+        emailMessage = " Los avisos por correo quedan pendientes hasta completar su configuración.";
+      }
+    } catch {
+      emailMessage = " El sorteo está guardado, pero los avisos por correo quedan pendientes de reintento.";
+    }
     revalidatePath(`/grupos/${groupId}`);
-    return { status: "success", message: "Sorteo realizado. Cada persona ya puede ver su resultado." };
+    return { status: "success", message: `Sorteo realizado. Cada persona ya puede ver su resultado.${emailMessage}` };
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function retryDrawEmailsAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const currentUser = await requireUser();
+    const groupId = uuidValue(formData, "groupId");
+    const db = getDb();
+    await prepareDrawEmailRetry(db, currentUser.id, groupId);
+    const emailEnv = getEmailEnv();
+    if (!emailEnv) throw new DomainError("El envío de correos todavía no está configurado.", "EMAIL_NOT_CONFIGURED");
+    const result = await deliverPendingDrawEmails(db, groupId, getServerEnv().BETTER_AUTH_URL, createBrevoTransport(emailEnv));
+    revalidatePath(`/grupos/${groupId}`);
+    if (result.failed) return { status: "error", message: `${result.failed} avisos siguen pendientes. Puedes volver a intentarlo más tarde.` };
+    return { status: "success", message: result.sent ? `${result.sent} avisos enviados.` : "No había avisos pendientes." };
   } catch (error) {
     return errorState(error);
   }

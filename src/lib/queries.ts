@@ -3,8 +3,9 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { unstable_noStore as noStore } from "next/cache";
 import { getDb } from "@/db";
-import { groups, memberships, user } from "@/db/schema";
+import { emailDeliveries, groups, memberships, user } from "@/db/schema";
 import { DomainError } from "@/lib/domain";
+import { isDeliverableEmail } from "@/lib/email-address";
 import { getPrivateResultForUser } from "@/lib/group-service";
 
 export async function getMyGroups(userId: string) {
@@ -63,7 +64,27 @@ export async function getGroupPage(groupId: string, userId: string) {
 
   const current = members.find((member) => member.userId === userId);
   if (!current) throw new DomainError("No perteneces a este grupo.", "FORBIDDEN");
-  return { group, members, current, isAdmin: group.adminId === userId };
+  const deliveries = group.status === "drawn" && group.adminId === userId
+    ? await getDb()
+      .select({ status: emailDeliveries.status })
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.groupId, groupId))
+    : [];
+  const availableEmails = group.status === "drawn" && group.adminId === userId
+    ? await getDb()
+      .select({ email: user.email, emailVerified: user.emailVerified })
+      .from(memberships)
+      .innerJoin(user, eq(user.id, memberships.userId))
+      .where(eq(memberships.groupId, groupId))
+    : [];
+  const deliverySummary = {
+    available: availableEmails.filter((entry) => isDeliverableEmail(entry.email, entry.emailVerified)).length,
+    total: deliveries.length,
+    sent: deliveries.filter((delivery) => delivery.status === "sent").length,
+    pending: deliveries.filter((delivery) => delivery.status === "pending" || delivery.status === "sending").length,
+    failed: deliveries.filter((delivery) => delivery.status === "failed").length,
+  };
+  return { group, members, current, isAdmin: group.adminId === userId, deliverySummary };
 }
 
 export async function getPrivateResult(groupId: string, userId: string) {

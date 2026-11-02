@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, CheckCircle2, CircleDashed, ClipboardCheck, Euro, Gift, LockKeyhole, UserMinus, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, CircleDashed, ClipboardCheck, Euro, Gift, LockKeyhole, Mail, UserMinus, Users } from "lucide-react";
 import { closeRegistrationsAction, leaveGroupAction, removeMemberAction, reopenRegistrationsAction } from "@/app/actions";
-import { DrawForm, PreferencesForm, PreviousForm, ShareInvite } from "@/components/action-forms";
+import { DrawForm, EmailRetryForm, PreferencesForm, PreviousForm, ShareInvite } from "@/components/action-forms";
 import { DeleteGroupDialog } from "@/components/delete-group-dialog";
 import { getServerEnv } from "@/lib/env";
 import { getGroupPage } from "@/lib/queries";
@@ -21,7 +21,7 @@ function ReadyStatus({ gift, annual, status }: { gift: boolean; annual: boolean;
 export default async function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
   const currentUser = await requireUser();
   const { groupId } = await params;
-  const { group, members, current, isAdmin } = await getGroupPage(groupId, currentUser.id);
+  const { group, members, current, isAdmin, deliverySummary } = await getGroupPage(groupId, currentUser.id);
   const completedGiftData = members.filter((member) => member.giftDataCompleted).length;
   const ready = members.filter((member) => member.giftDataCompleted && member.previousAnswerConfirmed).length;
   const memberFingerprint = members.map((member) => member.userId).sort().join(",");
@@ -99,6 +99,23 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
           )}
           <form action={reopenRegistrationsAction}><input type="hidden" name="groupId" value={groupId} /><button className="button secondary" type="submit">Reabrir inscripciones</button></form>
           <p className="hint">Reabrir borra las confirmaciones del año anterior, pero conserva las preferencias.</p>
+        </section>
+      )}
+
+      {isAdmin && group.status === "drawn" && (
+        <section className="card stack" aria-labelledby="email-deliveries">
+          <div className="spread"><div><p className="eyebrow">Avisos por correo</p><h2 id="email-deliveries">Estado de los avisos</h2></div><Mail aria-hidden="true" /></div>
+          {deliverySummary.total ? (
+            <>
+              <p><strong>{deliverySummary.sent} de {deliverySummary.total}</strong> avisos enviados.</p>
+              <p className="muted">{members.length - deliverySummary.total} participantes no tienen un correo disponible y pueden consultar el resultado en la web.</p>
+              {(deliverySummary.pending > 0 || deliverySummary.failed > 0 || deliverySummary.available > deliverySummary.total) && <EmailRetryForm groupId={groupId} />}
+            </>
+          ) : deliverySummary.available ? (
+            <><p className="muted">Los avisos de este sorteo todavía no se han preparado.</p><EmailRetryForm groupId={groupId} /></>
+          ) : (
+            <p className="muted">Ningún participante tiene un correo disponible. Todos pueden consultar su resultado en la web.</p>
+          )}
         </section>
       )}
 

@@ -17,6 +17,7 @@ import {
 import { relations, sql } from "drizzle-orm";
 
 export const groupStatus = pgEnum("group_status", ["open", "closed", "drawn"]);
+export const emailDeliveryStatus = pgEnum("email_delivery_status", ["pending", "sending", "sent", "failed"]);
 
 export const user = pgTable(
   "user",
@@ -189,6 +190,28 @@ export const assignments = pgTable(
   ],
 );
 
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id").notNull().references(() => groups.id, { onDelete: "cascade" }),
+    giverId: text("giver_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+    status: emailDeliveryStatus("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    providerMessageId: text("provider_message_id"),
+    lastErrorCode: text("last_error_code"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("email_deliveries_group_giver_uq").on(table.groupId, table.giverId),
+    index("email_deliveries_group_status_idx").on(table.groupId, table.status),
+    check("email_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
+  ],
+);
+
 export const codeLookupLimits = pgTable(
   "code_lookup_limits",
   {
@@ -204,6 +227,7 @@ export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   memberships: many(memberships),
   passkeys: many(passkey),
+  emailDeliveries: many(emailDeliveries),
 }));
 
 export const passkeyRelations = relations(passkey, ({ one }) => ({
@@ -222,6 +246,12 @@ export const groupRelations = relations(groups, ({ many, one }) => ({
   admin: one(user, { fields: [groups.adminId], references: [user.id] }),
   memberships: many(memberships),
   assignments: many(assignments),
+  emailDeliveries: many(emailDeliveries),
+}));
+
+export const emailDeliveryRelations = relations(emailDeliveries, ({ one }) => ({
+  group: one(groups, { fields: [emailDeliveries.groupId], references: [groups.id] }),
+  giver: one(user, { fields: [emailDeliveries.giverId], references: [user.id] }),
 }));
 
 export const membershipRelations = relations(memberships, ({ one }) => ({
@@ -240,5 +270,6 @@ export const schema = {
   groups,
   memberships,
   assignments,
+  emailDeliveries,
   codeLookupLimits,
 };
