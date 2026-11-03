@@ -23,6 +23,7 @@ test("genera un correo privado, legible y escapado", () => {
     budget: "35.00",
     exchangeDate: "2030-12-24",
     resultUrl: "https://clanserranai.vercel.app/grupos/00000000-0000-4000-8000-000000000000/resultado",
+    isReroll: false,
   });
 
   assert.equal(email.subject, "Tu resultado de Amigo Invisible ya está disponible");
@@ -34,4 +35,25 @@ test("genera un correo privado, legible y escapado", () => {
   assert.match(email.text, /Te toca regalar a: Bea <b>/);
   assert.match(email.text, /35,00 €/);
   assert.match(email.text, /24 de diciembre de 2030/);
+});
+
+test("el correo de repetición invalida expresamente el resultado anterior", () => {
+  const email = buildDrawResultEmail({
+    giverName: "Ana",
+    groupName: "Familia",
+    recipientName: "Bea",
+    favoriteColor: "Azul",
+    topSize: "M",
+    bottomSize: "40",
+    shoeSize: "39",
+    giftNotes: null,
+    budget: null,
+    exchangeDate: null,
+    resultUrl: "https://clanserranai.vercel.app/grupos/00000000-0000-4000-8000-000000000000/resultado",
+    isReroll: true,
+  });
+
+  assert.equal(email.subject, "Tu resultado de Amigo Invisible ha cambiado");
+  assert.match(email.text, /resultado anterior ya no es válido/);
+  assert.match(email.html, /resultado anterior ya no es válido/);
 });

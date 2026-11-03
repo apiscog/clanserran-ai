@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, CheckCircle2, CircleDashed, ClipboardCheck, Euro, Gift, LockKeyhole, Mail, UserMinus, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, CircleDashed, ClipboardCheck, Euro, Gift, LockKeyhole, Mail, TriangleAlert, UserMinus, Users } from "lucide-react";
 import { closeRegistrationsAction, leaveGroupAction, removeMemberAction, reopenRegistrationsAction } from "@/app/actions";
 import { DrawForm, EmailRetryForm, PreferencesForm, PreviousForm, ShareInvite } from "@/components/action-forms";
 import { DeleteGroupDialog } from "@/components/delete-group-dialog";
+import { RerunDrawDialog } from "@/components/rerun-draw-dialog";
 import { getServerEnv } from "@/lib/env";
 import { getGroupPage } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
@@ -120,6 +121,14 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
       )}
 
       {group.status === "open" && !isAdmin && <form action={leaveGroupAction}><input type="hidden" name="groupId" value={groupId} /><button className="button danger" type="submit">Salir del grupo</button></form>}
+
+      {isAdmin && group.status === "drawn" && !group.rerolledAt && (
+        <section className="card stack warning-zone" aria-labelledby="rerun-draw-section">
+          <div className="cluster warning-heading"><TriangleAlert aria-hidden="true" size={26} /><div><p className="eyebrow">Administración</p><h2 id="rerun-draw-section">Repetir sorteo</h2></div></div>
+          <p>Invalida los resultados actuales y crea nuevas asignaciones. Solo podrás hacerlo una vez.</p>
+          <RerunDrawDialog groupId={groupId} groupName={group.name} />
+        </section>
+      )}
 
       {isAdmin && (
         <section className="card stack danger-zone" aria-labelledby="delete-group-section">

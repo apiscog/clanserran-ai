@@ -2,7 +2,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db";
 import { assignments, emailDeliveries, groups, memberships, user } from "@/db/schema";
-import { assertAdmin, assertCanReadAssignment, assertCanRunDraw, DomainError } from "@/lib/domain";
+import { assertAdmin, assertCanReadAssignment, assertCanRerunDraw, assertCanRunDraw, DomainError } from "@/lib/domain";
 import { findDraw } from "@/lib/draw";
 import { isDeliverableEmail } from "@/lib/email-address";
 
@@ -196,6 +196,61 @@ export async function runGroupDraw(db: Database, actorId: string, groupId: strin
   );
 }
 
+export async function rerunGroupDraw(db: Database, actorId: string, groupId: string) {
+  return db.transaction(
+    async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${groupId}))`);
+      const [group] = await tx.select().from(groups).where(eq(groups.id, groupId)).limit(1).for("update");
+      if (!group) throw new DomainError("El grupo no existe.", "NOT_FOUND");
+      const members = await tx.select().from(memberships).where(eq(memberships.groupId, groupId));
+      assertCanRerunDraw({
+        adminId: group.adminId,
+        actorId,
+        status: group.status,
+        rerolledAt: group.rerolledAt,
+        members,
+      });
+
+      const [activeDelivery] = await tx
+        .select({ id: emailDeliveries.id })
+        .from(emailDeliveries)
+        .where(and(eq(emailDeliveries.groupId, groupId), eq(emailDeliveries.status, "sending")))
+        .limit(1);
+      if (activeDelivery) {
+        throw new DomainError("Hay avisos en proceso. Espera unos instantes antes de repetir el sorteo.", "EMAILS_IN_PROGRESS");
+      }
+
+      const result = findDraw(
+        members.map((member) => member.userId),
+        members
+          .filter((member) => member.previousAnswerKind === "participant" && member.previousRecipientId)
+          .map((member) => ({ giverId: member.userId, recipientId: member.previousRecipientId! })),
+      );
+      if (result.kind === "impossible") throw new DomainError("No existe una combinación válida con las exclusiones actuales.", "IMPOSSIBLE_DRAW");
+      if (result.kind === "limit") throw new DomainError("La búsqueda alcanzó el límite operativo. Se conserva el sorteo actual.", "SEARCH_LIMIT");
+
+      const participants = await tx
+        .select({ id: user.id, email: user.email, emailVerified: user.emailVerified })
+        .from(user)
+        .where(inArray(user.id, result.assignments.map((assignment) => assignment.giverId)));
+      const eligibleGivers = participants
+        .filter((participant) => isDeliverableEmail(participant.email, participant.emailVerified))
+        .map((participant) => participant.id);
+
+      await tx.delete(emailDeliveries).where(eq(emailDeliveries.groupId, groupId));
+      await tx.delete(assignments).where(eq(assignments.groupId, groupId));
+      await tx.insert(assignments).values(result.assignments.map((item) => ({ groupId, ...item })));
+      const now = new Date();
+      await tx.update(groups).set({ rerolledAt: now, drawnAt: now, updatedAt: now }).where(eq(groups.id, groupId));
+      if (eligibleGivers.length) {
+        await tx.insert(emailDeliveries).values(eligibleGivers.map((giverId) => ({ groupId, giverId })));
+      }
+      return result.assignments;
+    },
+    { isolationLevel: "serializable" },
+  );
+}
+
 export async function getPrivateResultForUser(
   db: Database,
   groupId: string,
@@ -217,6 +272,7 @@ export async function getPrivateResultForUser(
       budget: groups.budget,
       exchangeDate: groups.exchangeDate,
       status: groups.status,
+      rerolledAt: groups.rerolledAt,
     })
     .from(assignments)
     .innerJoin(groups, eq(groups.id, assignments.groupId))

@@ -139,6 +139,7 @@ export const groups = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     drawnAt: timestamp("drawn_at", { withTimezone: true }),
+    rerolledAt: timestamp("rerolled_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("groups_join_code_uq").on(table.joinCode),

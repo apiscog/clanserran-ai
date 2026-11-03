@@ -15,6 +15,7 @@ import {
   deleteGroup,
   joinGroupByCode,
   joinGroupByInvite,
+  rerunGroupDraw,
   runGroupDraw,
   saveGiftPreferences,
 } from "@/lib/group-service";
@@ -43,6 +44,18 @@ function errorState(error: unknown): ActionState {
   }
   console.error("Operación fallida", { type: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code });
   return { status: "error", message: "No hemos podido completar la acción. Inténtalo de nuevo." };
+}
+
+async function sendPendingDrawEmails(db: ReturnType<typeof getDb>, groupId: string) {
+  try {
+    const emailEnv = getEmailEnv();
+    if (!emailEnv) return " Los avisos por correo quedan pendientes hasta completar su configuración.";
+    const delivery = await deliverPendingDrawEmails(db, groupId, getServerEnv().BETTER_AUTH_URL, createBrevoTransport(emailEnv));
+    if (delivery.failed) return ` ${delivery.sent} avisos enviados y ${delivery.failed} pendientes de reintento.`;
+    return delivery.sent ? ` ${delivery.sent} avisos enviados por correo.` : "";
+  } catch {
+    return " El resultado está guardado, pero los avisos por correo quedan pendientes de reintento.";
+  }
 }
 
 export async function updateProfileAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -257,6 +270,24 @@ export async function runDrawAction(_: ActionState, formData: FormData): Promise
     }
     revalidatePath(`/grupos/${groupId}`);
     return { status: "success", message: `Sorteo realizado. Cada persona ya puede ver su resultado.${emailMessage}` };
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function rerunDrawAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const currentUser = await requireUser();
+    const groupId = uuidValue(formData, "groupId");
+    if (value(formData, "confirm") !== "yes") {
+      throw new DomainError("Debes confirmar que quieres repetir el sorteo.", "CONFIRMATION_REQUIRED");
+    }
+    const db = getDb();
+    await rerunGroupDraw(db, currentUser.id, groupId);
+    const emailMessage = await sendPendingDrawEmails(db, groupId);
+    revalidatePath(`/grupos/${groupId}`);
+    revalidatePath(`/grupos/${groupId}/resultado`);
+    return { status: "success", message: `Sorteo repetido. Las asignaciones anteriores ya no son válidas.${emailMessage}` };
   } catch (error) {
     return errorState(error);
   }

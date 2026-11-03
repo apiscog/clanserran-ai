@@ -10,6 +10,7 @@ export type DrawEmailContent = {
   budget: string | null;
   exchangeDate: string | null;
   resultUrl: string;
+  isReroll: boolean;
 };
 
 export type TransactionalEmail = {
@@ -55,12 +56,15 @@ export function buildDrawResultEmail(input: DrawEmailContent): TransactionalEmai
   const groupDetails = [budget && `Presupuesto: ${budget}`, exchangeDate && `Fecha: ${exchangeDate}`].filter(Boolean) as string[];
   const textRows = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
   const detailsText = groupDetails.length ? `\n${groupDetails.join("\n")}\n` : "";
+  const resultNotice = input.isReroll
+    ? "El grupo ha repetido el sorteo. Tu resultado anterior ya no es válido."
+    : `El sorteo de ${input.groupName} ya se ha realizado.`;
 
   const text = `AmigoInvisibleClan
 
 Hola, ${input.giverName}:
 
-El sorteo de ${input.groupName} ya se ha realizado.
+${resultNotice}
 
 Te toca regalar a: ${input.recipientName}
 
@@ -93,7 +97,7 @@ Este es un mensaje automático relacionado con tu participación en el grupo.`;
         <tr><td style="padding:30px 26px;">
           <p style="margin:0 0 26px;font-size:22px;line-height:1.2;font-weight:700;">AmigoInvisibleClan</p>
           <p style="margin:0 0 16px;font-size:17px;line-height:1.6;">Hola, ${escapeHtml(input.giverName)}:</p>
-          <p style="margin:0 0 20px;font-size:17px;line-height:1.6;">El sorteo de <strong>${escapeHtml(input.groupName)}</strong> ya se ha realizado.</p>
+          <p style="margin:0 0 20px;font-size:17px;line-height:1.6;">${input.isReroll ? "El grupo ha repetido el sorteo. <strong>Tu resultado anterior ya no es válido.</strong>" : `El sorteo de <strong>${escapeHtml(input.groupName)}</strong> ya se ha realizado.`}</p>
           <p style="margin:0 0 8px;font-size:15px;line-height:1.4;color:#555;">Te toca regalar a</p>
           <p style="margin:0 0 24px;font-size:28px;line-height:1.2;font-weight:700;">${escapeHtml(input.recipientName)}</p>
           <p style="margin:0 0 10px;font-size:17px;line-height:1.4;font-weight:700;">Preferencias para el regalo</p>
@@ -112,5 +116,9 @@ Este es un mensaje automático relacionado con tu participación en el grupo.`;
 </body>
 </html>`;
 
-  return { subject: "Tu resultado de Amigo Invisible ya está disponible", html, text };
+  return {
+    subject: input.isReroll ? "Tu resultado de Amigo Invisible ha cambiado" : "Tu resultado de Amigo Invisible ya está disponible",
+    html,
+    text,
+  };
 }

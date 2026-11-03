@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assertCanReadAssignment,
+  assertCanRerunDraw,
   assertCanRunDraw,
   assertMember,
   DomainError,
@@ -33,6 +34,13 @@ test("la segunda ejecución queda rechazada por el estado ya sorteado", () => {
     () => assertCanRunDraw({ adminId: "ana", actorId: "ana", status: "drawn", members: Array(3).fill({ giftDataCompleted: true, previousAnswerConfirmed: true }) }),
     "ALREADY_DRAWN",
   );
+});
+
+test("solo el administrador puede consumir la única repetición", () => {
+  const members = Array(3).fill({ giftDataCompleted: true, previousAnswerConfirmed: true });
+  expectsCode(() => assertCanRerunDraw({ adminId: "ana", actorId: "bea", status: "drawn", rerolledAt: null, members }), "FORBIDDEN");
+  assert.doesNotThrow(() => assertCanRerunDraw({ adminId: "ana", actorId: "ana", status: "drawn", rerolledAt: null, members }));
+  expectsCode(() => assertCanRerunDraw({ adminId: "ana", actorId: "ana", status: "drawn", rerolledAt: new Date(), members }), "REROLL_USED");
 });
 
 test("reabrir invalida las confirmaciones anuales y conserva el resto", () => {

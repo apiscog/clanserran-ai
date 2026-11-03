@@ -1,0 +1,1 @@
+ALTER TABLE "groups" ADD COLUMN "rerolled_at" timestamp with time zone;

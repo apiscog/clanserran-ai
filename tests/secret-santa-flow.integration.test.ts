@@ -16,6 +16,7 @@ import {
   getPrivateResultForUser,
   joinGroupByCode,
   joinGroupByInvite,
+  rerunGroupDraw,
   runGroupDraw,
   saveGiftPreferences,
   type GiftPreferences,
@@ -144,6 +145,55 @@ test("recorrido completo de amigo invisible con tres identidades", { skip: !test
     await rejectsWithCode(runGroupDraw(db, userA, groupId, fingerprint), "ALREADY_DRAWN");
     const afterRetry = await db.select().from(assignments).where(eq(assignments.groupId, groupId));
     assert.deepEqual(afterRetry.map(({ giverId, recipientId }) => `${giverId}:${recipientId}`).sort(), snapshot);
+
+    await db
+      .update(emailDeliveries)
+      .set({ status: "sending", claimedAt: new Date() })
+      .where(eq(emailDeliveries.id, queued[0]!.id));
+    await rejectsWithCode(rerunGroupDraw(db, userA, groupId), "EMAILS_IN_PROGRESS");
+    await db
+      .update(emailDeliveries)
+      .set({ status: "sent", claimedAt: null })
+      .where(eq(emailDeliveries.id, queued[0]!.id));
+    await rejectsWithCode(rerunGroupDraw(db, userB, groupId), "FORBIDDEN");
+
+    const concurrentRerolls = await Promise.allSettled([
+      rerunGroupDraw(db, userA, groupId),
+      rerunGroupDraw(db, userA, groupId),
+    ]);
+    assert.equal(concurrentRerolls.filter((result) => result.status === "fulfilled").length, 1);
+    const rejectedReroll = concurrentRerolls.find((result) => result.status === "rejected");
+    assert.ok(rejectedReroll?.status === "rejected");
+    const rerolledGroup = (await db.select().from(groups).where(eq(groups.id, groupId)))[0]!;
+    assert.ok(rerolledGroup.rerolledAt instanceof Date);
+    const rerolledAssignments = await db.select().from(assignments).where(eq(assignments.groupId, groupId));
+    assert.equal(rerolledAssignments.length, 3);
+    assert.deepEqual(new Set(rerolledAssignments.map((item) => item.giverId)), new Set(userIds));
+    assert.deepEqual(new Set(rerolledAssignments.map((item) => item.recipientId)), new Set(userIds));
+    assert.ok(rerolledAssignments.every((item) => item.giverId !== item.recipientId));
+    assert.notEqual(rerolledAssignments.find((item) => item.giverId === userA)?.recipientId, userB);
+
+    const rerolledDeliveries = await db.select().from(emailDeliveries).where(eq(emailDeliveries.groupId, groupId));
+    assert.equal(rerolledDeliveries.length, 3);
+    assert.ok(rerolledDeliveries.every((delivery) => delivery.status === "pending"));
+    assert.deepEqual(await deliverPendingDrawEmails(db, groupId, "https://example.test", transport), { sent: 3, failed: 0 });
+    const updatedMessages = successfulMessages.slice(3);
+    assert.equal(updatedMessages.length, 3);
+    assert.equal(new Set(successfulMessages.map((message) => message.idempotencyKey)).size, 6);
+    assert.ok(updatedMessages.every((message) => message.message.subject === "Tu resultado de Amigo Invisible ha cambiado"));
+    assert.ok(updatedMessages.every((message) => /resultado anterior ya no es válido/.test(message.message.text)));
+    for (const sent of updatedMessages) {
+      const giverId = sent.recipient.email.startsWith("a-") ? userA : sent.recipient.email.startsWith("b-") ? userB : userC;
+      const privateResult = await getPrivateResultForUser(db, groupId, giverId);
+      assert.match(sent.message.text, new RegExp(`Te toca regalar a: ${privateResult.recipientName}`));
+      assert.match(sent.message.text, new RegExp(privateResult.favoriteColor!));
+    }
+    await rejectsWithCode(rerunGroupDraw(db, userA, groupId), "REROLL_USED");
+    const afterSecondRerollAttempt = await db.select().from(assignments).where(eq(assignments.groupId, groupId));
+    assert.deepEqual(
+      afterSecondRerollAttempt.map(({ giverId, recipientId }) => `${giverId}:${recipientId}`).sort(),
+      rerolledAssignments.map(({ giverId, recipientId }) => `${giverId}:${recipientId}`).sort(),
+    );
 
     await rejectsWithCode(joinGroupByCode(db, randomUUID(), created.joinCode), "INVALID_CODE");
     await rejectsWithCode(joinGroupByInvite(db, randomUUID(), created.inviteToken), "INVALID_INVITE");

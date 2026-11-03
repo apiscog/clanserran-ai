@@ -13,6 +13,7 @@ const MAX_DELIVERIES_PER_RUN = 100;
 
 async function claimNext(db: Database, groupId: string) {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${groupId}))`);
     const staleBefore = new Date(Date.now() - CLAIM_TIMEOUT_MS);
     const [candidate] = await tx
       .select({ id: emailDeliveries.id, giverId: emailDeliveries.giverId })
@@ -80,6 +81,7 @@ export async function deliverPendingDrawEmails(
         budget: result.budget,
         exchangeDate: result.exchangeDate,
         resultUrl: `${baseUrl}/grupos/${groupId}/resultado`,
+        isReroll: Boolean(result.rerolledAt),
       });
       const accepted = await transport.send({
         recipient: { email: giver.email, name: giver.name },
@@ -106,6 +108,7 @@ export async function deliverPendingDrawEmails(
 
 export async function prepareDrawEmailRetry(db: Database, actorId: string, groupId: string) {
   await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${groupId}))`);
     const [group] = await tx.select({ adminId: groups.adminId, status: groups.status }).from(groups).where(eq(groups.id, groupId)).limit(1).for("update");
     if (!group) throw new DomainError("El grupo no existe.", "NOT_FOUND");
     assertAdmin(group.adminId, actorId);

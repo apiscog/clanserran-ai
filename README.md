@@ -11,6 +11,7 @@ Aplicación privada y responsive para organizar el amigo invisible familiar. Usa
 - Preferencias privadas de regalo y exclusión dirigida del destinatario del año anterior.
 - Sorteo criptográficamente aleatorizado mediante búsqueda acotada; no se promete uniformidad estadística.
 - Resultado privado: cada persona consulta únicamente su destinatario y sus preferencias actuales.
+- Una única repetición extraordinaria del sorteo por grupo, disponible solo para su administrador y con confirmación explícita.
 - Aviso transaccional opcional mediante Brevo para participantes con correo real, con cola persistente y reintentos sin repetir el sorteo.
 - Autorización en servidor, rate limit persistente para códigos, transacciones, bloqueo por grupo y restricciones de base de datos.
 - Interfaz en español, mobile first, accesible por teclado y compatible con `prefers-reduced-motion`.
@@ -127,9 +128,9 @@ Los avisos son opcionales y se envían después de confirmar el sorteo en Postgr
 2. Crea una clave en **SMTP y API → Claves API**.
 3. Configura `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` y `BREVO_REPLY_TO_EMAIL` en `.env.local` y, posteriormente, en Vercel Production. Las tres son privadas.
 4. Usa como `BREVO_SENDER_EMAIL` la dirección verificada original. Brevo puede sustituir el dominio técnico por `@brevosend.com`; no copies esa sustitución a la configuración.
-5. Aplica la migración `0003_strange_starfox.sql` antes de desplegar esta versión.
+5. Aplica las migraciones pendientes antes de desplegar. `0003_strange_starfox.sql` añade la cola de avisos y `0004_amazing_hellion.sql` habilita la repetición única para grupos nuevos y existentes.
 
-El remitente visible y el encabezado son **AmigoInvisibleClan**. Cada correo contiene solo el resultado de su destinatario, las preferencias actuales en el momento del envío, presupuesto, fecha y un enlace autenticado al resultado vigente. La API se invoca desde el servidor; la clave y el contenido no llegan al navegador ni se escriben en logs. Las pruebas usan un transporte aislado y nunca llaman a Brevo.
+El remitente visible y el encabezado son **AmigoInvisibleClan**. Cada correo contiene solo el resultado de su destinatario, las preferencias actuales en el momento del envío, presupuesto, fecha y un enlace autenticado al resultado vigente. Si el administrador utiliza la única repetición, los avisos anteriores pendientes se descartan y el nuevo asunto indica que el resultado ha cambiado. La API se invoca desde el servidor; la clave y el contenido no llegan al navegador ni se escriben en logs. Las pruebas usan un transporte aislado y nunca llaman a Brevo.
 
 ## Microsoft OAuth y cuentas personales
 
@@ -234,6 +235,7 @@ Consulta los límites vigentes directamente en [Vercel](https://vercel.com/docs/
 - Las preferencias ajenas no se cargan en la página del grupo. La consulta de resultado filtra directamente por `giverId` de la sesión.
 - El administrador no tiene una vista global de asignaciones.
 - El sorteo se ejecuta con aislamiento `serializable`, bloqueo transaccional por grupo, claves únicas para emisor/receptor y actualización de estado atómica.
+- La repetición solo puede consumirse una vez, sustituye todas las asignaciones en una transacción y se detiene si hay un aviso enviándose.
 - Si la combinación es imposible o se alcanza el límite operativo, la transacción se revierte completa.
 - Los errores del servidor no registran asignaciones, preferencias ni contenido de formularios.
 

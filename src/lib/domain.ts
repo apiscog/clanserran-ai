@@ -43,6 +43,22 @@ export function assertCanRunDraw(input: {
   }
 }
 
+export function assertCanRerunDraw(input: {
+  adminId: string;
+  actorId: string;
+  status: GroupStatus;
+  rerolledAt: Date | null;
+  members: readonly { giftDataCompleted: boolean; previousAnswerConfirmed: boolean }[];
+}) {
+  assertAdmin(input.adminId, input.actorId);
+  if (input.status !== "drawn") throw new DomainError("El primer sorteo todavía no se ha realizado.", "INVALID_STATE");
+  if (input.rerolledAt) throw new DomainError("Este grupo ya utilizó su única repetición.", "REROLL_USED");
+  if (input.members.length < 3) throw new DomainError("Se necesitan al menos tres participantes.", "TOO_FEW_MEMBERS");
+  if (input.members.some((member) => !member.giftDataCompleted || !member.previousAnswerConfirmed)) {
+    throw new DomainError("Todas las personas deben seguir listas para repetir el sorteo.", "NOT_READY");
+  }
+}
+
 export function invalidateAnnualConfirmations<T extends { previousAnswerConfirmed: boolean; previousRecipientId: string | null; previousAnswerKind: string | null }>(members: T[]) {
   return members.map((member) => ({
     ...member,
